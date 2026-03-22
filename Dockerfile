@@ -1,6 +1,7 @@
 
 FROM eclipse-temurin:21.0.10_7-jre-noble
 LABEL maintainer="togo.huang@foxmail.com"
+USER application:application
 RUN mkdir -p /opt/config
 WORKDIR /opt
 ARG TIME_ZONE="Asia/Shanghai"
