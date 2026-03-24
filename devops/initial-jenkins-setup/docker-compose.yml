@@ -1,0 +1,69 @@
+services:
+  jenkins:
+    image: jenkins/jenkins:lts-jdk21
+    container_name: jenkins
+    restart: unless-stopped
+    privileged: true
+    user: root
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    environment:
+      - JAVA_OPTS=-Djenkins.install.runSetupWizard=false
+      - DOCKER_HOST=tcp://docker:2375
+    volumes:
+      - ./data/jenkins-data:/var/jenkins_home
+      - ./plugins.txt:/usr/share/jenkins/ref/plugins.txt
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./scripts/init.groovy:/usr/share/jenkins/ref/init.groovy.d/init.groovy
+    networks:
+      - jenkins-network
+    depends_on:
+      - docker
+      - artifactory
+      - docker-host
+  docker:
+    image: docker:dind
+    container_name: jenkins-docker
+    privileged: true
+    environment:
+      - DOCKER_TLS_CERTDIR=
+    volumes:
+      - ./data/docker-data:/var/lib/docker
+    networks:
+      - jenkins-network
+    command: ["--host", "tcp://0.0.0.0:2375", "--tls=false"]
+  artifactory:
+    image: releases-docker.jfrog.io/jfrog/artifactory-oss:latest
+    container_name: artifactory
+    restart: unless-stopped
+    ports:
+      - "8081:8082"
+      - "8082:8081"
+    environment:
+      - ARTIFACTORY_HOME=/var/opt/jfrog/artifactory
+    volumes:
+      - ./data/artifactory-data:/var/opt/jfrog/artifactory
+    networks:
+      - jenkins-network
+  docker-host:
+    image: alpine/socat:latest
+    container_name: docker-host
+    restart: unless-stopped
+    ports:
+      - "2376:2375"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - jenkins-network
+    command: "tcp-listen:2375,fork,reuseaddr unix-connect:/var/run/docker.sock"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2375"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+networks:
+  jenkins-network:
+    driver: bridge
+    name: jenkins-network

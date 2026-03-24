@@ -41,7 +41,7 @@ pipeline {
             IMAGE_FULL_NAME = "${IMAGE_NAME}:${BRANCH_NAME}-${BUILD_NUMBER}"
             IMAGE_LATEST_NAME = "${IMAGE_NAME}:${BRANCH_NAME}-latest"
             DEPLOY_ENV = 'initial'
-            PUSH_IMAGE_HOST = 'web-apirepo.int.repositories.cloud.sap'
+            PUSH_IMAGE_HOST = 'web-api-repository.hsbc.com'
             PUSH_IMAGE_PATH = 'web-api/web-api-migration'
             K8S_NS_CXT = ''
      }
@@ -50,12 +50,13 @@ pipeline {
             stage('Decide DEPLOY_ENV') {
                  steps {
                        script {
+                        // branch policy: PR-xxx for pull request, main/master for the main branch, v1.0.0 for the release tag
                              switch ( BRANCH_NAME ) {
                                     case ~/(^PR-.*)/:
                                         DEPLOY_ENV = 'dev'
                                         K8S_NS_CXT = 'DEV'
                                         break
-                                    case ~/(master)/:
+                                    case ~/(main|master)/:
                                           DEPLOY_ENV = 'qa'
                                           K8S_NS_CXT = 'QA'
                                           break
