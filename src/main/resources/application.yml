@@ -1,24 +1,5 @@
-server:
-  port: 8080
-  shutdown: graceful
-#  servlet:
-#    context-path: /api
 spring:
   application:
     name: web-api
-springdoc:
-  api-docs:
-    enabled: true
-management:
-  endpoints:
-    web:
-      exposure:
-        include: "*"  # health,info,prometheus
-  prometheus:
-    metrics:
-      export:
-        enabled: true
-logging:
-  level:
-    root: info
-    hst.shengtao.web: debug
+  profiles:
+    active: dev

@@ -1,0 +1,139 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: web-api-app-config
+type: Opaque
+data:
+  # For simplicity, a custom variable placeholder template (which can be replaced with sed) is used here
+  # Enterprise level should be managed by KMS, Vault suite or implemented through a centralized configuration center
+  application.yml: __APP_CFG_DEFINED
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: web-api
+  labels:
+    name: iungo-deployment
+    app: web-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web-api
+  template:
+    metadata:
+      labels:
+        app: web-api
+    spec:
+      volumes:
+        - name: application-conf-volume
+          secret:
+            secretName: web-api-app-config
+            defaultMode: 420
+      containers:
+        - name: web-api
+          image: >-
+            hsbc/demo/web-api:latest
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep 3"]
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            failureThreshold: 20
+            periodSeconds: 5
+            timeoutSeconds: 3
+            successThreshold: 1
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          env:
+            - name: "JAVA_OPTS"
+              value: "-Dfile.encoding=UTF8 -Xms2g -Xmx2g -XX:+UseCompressedOops -XX:MaxGCPauseMillis=300 -Dspring.config.location=file:/opt/config/application.yml"
+          imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: 200m
+              memory: 3Gi
+            limits:
+              cpu: 800m
+              memory: 3Gi
+          volumeMounts:
+            - name: application-conf-volume
+              readOnly: true
+              mountPath: /opt/config/
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+      securityContext: {}
+      schedulerName: default-scheduler
+  revisionHistoryLimit: 4
+  progressDeadlineSeconds: 600
+  # Always explicitly declare the update strategy
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 2
+#  strategy:
+#    type: Recreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    name: web-api-service
+    app: web-api
+  name: web-api-service
+spec:
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+  selector:
+    app: web-api
+  type: ClusterIP
+  sessionAffinity: None
+  ipFamilies:
+    - IPv4
+  ipFamilyPolicy: SingleStack
+  internalTrafficPolicy: Cluster
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web-api-ingress
+  labels:
+    name: web-api-service
+    app: web-api
+  # annotations:
+  #   kubernetes.io/ingress.class: nginx
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: web-api-dev.hsbc.com
+    http:
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+          backend:
+            service:
+              name: web-api-service
+              port:
+                number: 8080
